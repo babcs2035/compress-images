@@ -153,17 +153,17 @@ async function main() {
   for (const r of results) {
     try {
       r.beforeResizeFileSize = await fs.stat(r.originalPath).then(s => s.size);
-      const ext = path.extname(r.originalPath);
-      r.filePath = path.join(OUTPUT_DIR, `${r.key}${ext}`);
+      // Always output as .webp
+      r.filePath = path.join(OUTPUT_DIR, `${r.key}.webp`);
       if (r.width > 1024) {
         const image = sharp(r.originalPath);
-        // アスペクト比維持で width=1024 にリサイズ
-        await image.resize(1024).toFile(r.filePath + ".resized");
-        await fs.rename(r.filePath + ".resized", r.filePath);
+        // Resize to width=1024, keep aspect ratio, and convert to webp
+        await image.resize(1024).webp().toFile(r.filePath);
         r.fileSize = await fs.stat(r.filePath).then(s => s.size);
       } else {
-        await fs.copyFile(r.originalPath, r.filePath);
-        r.fileSize = r.beforeResizeFileSize;
+        // Convert to webp without resizing
+        await sharp(r.originalPath).webp().toFile(r.filePath);
+        r.fileSize = await fs.stat(r.filePath).then(s => s.size);
       }
     } catch (err) {
       console.error(`❌ Error processing ${r.key}:`, err);
