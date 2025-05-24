@@ -18,7 +18,7 @@ const OUTPUT_DIR = "./revised_images";
 const s3 = new S3Client({ region: REGION });
 
 // デバッグ用フラグ
-const DEBUG = true;
+const DEBUG = false;
 
 // ダウンロード＆画像情報取得（オリジナル保存）
 async function downloadAndAnalyzeImage(key: string): Promise<{
@@ -175,16 +175,27 @@ async function main() {
 
   // ファイルサイズ比較のみ出力
   console.log("📉 File size comparison:");
-  console.table(
-    results.map(r => ({
-      key: r.key,
-      original: r.beforeResizeFileSize ? `${r.beforeResizeFileSize} bytes` : "-",
-      revised: r.fileSize ? `${r.fileSize} bytes` : "-",
-      reduction: (r.beforeResizeFileSize && r.fileSize && r.beforeResizeFileSize !== 0)
-        ? `${(100 * (r.beforeResizeFileSize - r.fileSize) / r.beforeResizeFileSize).toFixed(1)} %`
-        : "-"
-    }))
-  );
+  const tableData = results.map(r => ({
+    key: r.key,
+    original: r.beforeResizeFileSize ? `${r.beforeResizeFileSize} bytes` : "-",
+    revised: r.fileSize ? `${r.fileSize} bytes` : "-",
+    reduction: (r.beforeResizeFileSize && r.fileSize && r.beforeResizeFileSize !== 0)
+      ? `${(100 * (r.beforeResizeFileSize - r.fileSize) / r.beforeResizeFileSize).toFixed(1)} %`
+      : "-"
+  }));
+  console.table(tableData);
+
+  // Show total reduction
+  const totalOriginal = results.reduce((sum, r) => sum + (r.beforeResizeFileSize || 0), 0);
+  const totalRevised = results.reduce((sum, r) => sum + (r.fileSize || 0), 0);
+  if (totalOriginal > 0) {
+    const reduction = ((totalOriginal - totalRevised) / totalOriginal) * 100;
+    console.log(
+      `\nTotal original size: ${totalOriginal} bytes\n` +
+      `Total revised size:  ${totalRevised} bytes\n` +
+      `Total reduction:     ${reduction.toFixed(1)} %`
+    );
+  }
 }
 
 main().catch(console.error);
