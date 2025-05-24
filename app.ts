@@ -1,6 +1,7 @@
 import {
   S3Client,
   GetObjectCommand,
+  PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
@@ -13,6 +14,9 @@ const BUCKET_NAME = "mf98-parrot-files-pro";
 const REGION = "ap-northeast-1";
 const ORIGINAL_DIR = "./original_images";
 const OUTPUT_DIR = "./revised_images";
+
+// Upload config
+const UPLOAD_BUCKET = "mf98-parrot-images-optimized";
 
 // S3 クライアント
 const s3 = new S3Client({ region: REGION });
@@ -91,6 +95,18 @@ async function downloadAndAnalyzeImage(key: string): Promise<{
     height: metadata.height || 0,
     originalPath,
   };
+}
+
+// Upload file to S3
+async function uploadFileToS3(localPath: string, key: string) {
+  const fileData = await fs.readFile(localPath);
+  const command = new PutObjectCommand({
+    Bucket: UPLOAD_BUCKET,
+    Key: key,
+    Body: fileData,
+    ContentType: "image/webp",
+  });
+  await s3.send(command);
 }
 
 // 実行メイン関数
@@ -172,6 +188,25 @@ async function main() {
   }
   processBar.stop();
   console.log("✅ Image processing complete\n");
+
+  // Upload processed images to another bucket
+  const uploadBar = new cliProgress.SingleBar({
+    format: 'Uploading    |{bar}| {value}/{total} images',
+    hideCursor: true,
+  }, cliProgress.Presets.shades_classic);
+  uploadBar.start(results.length, 0);
+
+  for (const r of results) {
+    try {
+      const uploadKey = `${r.key}`;
+      await uploadFileToS3(r.filePath!, uploadKey);
+    } catch (err) {
+      console.error(`❌ Error uploading ${r.key}:`, err);
+    }
+    uploadBar.increment();
+  }
+  uploadBar.stop();
+  console.log("✅ Upload complete\n");
 
   // ファイルサイズ比較のみ出力
   console.log("📉 File size comparison:");
